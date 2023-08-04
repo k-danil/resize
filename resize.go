@@ -21,12 +21,12 @@ THIS SOFTWARE.
 // utilized in the computations.
 //
 // Example:
-//     imgResized := resize.Resize(1000, 0, imgOld, resize.MitchellNetravali)
+//
+//	imgResized := resize.Resize(1000, 0, imgOld, resize.MitchellNetravali)
 package resize
 
 import (
 	"image"
-	"runtime"
 	"sync"
 )
 
@@ -103,7 +103,8 @@ func Resize(width, height uint, img image.Image, interp InterpolationFunction) i
 	}
 
 	taps, kernel := interp.kernel()
-	cpus := runtime.GOMAXPROCS(0)
+	//cpus := runtime.NumCPU()
+	cpus := 2
 	wg := sync.WaitGroup{}
 
 	// Generic access to image.Image is slow in tight loops.
@@ -348,7 +349,8 @@ func Resize(width, height uint, img image.Image, interp InterpolationFunction) i
 
 func resizeNearest(width, height uint, scaleX, scaleY float64, img image.Image, interp InterpolationFunction) image.Image {
 	taps, _ := interp.kernel()
-	cpus := runtime.GOMAXPROCS(0)
+	//cpus := runtime.NumCPU()
+	cpus := 2
 	wg := sync.WaitGroup{}
 
 	switch input := img.(type) {
