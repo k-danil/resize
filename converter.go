@@ -16,13 +16,26 @@ THIS SOFTWARE.
 
 package resize
 
-import "image"
+import (
+	"image"
+	"reflect"
+	"unsafe"
+)
+
+func b2u(b bool) uint8 {
+	if b {
+		return 1
+	}
+	return 0
+}
 
 // Keep value in [0,255] range.
 func clampUint8(in int32) uint8 {
 	// casting a negative int to an uint will result in an overflown
 	// large uint. this behavior will be exploited here and in other functions
 	// to achieve a higher performance.
+	//in &= -int32(b2u(in >= 0))
+	//return uint8(in | ((255 - in) >> 31))
 	if uint32(in) < 256 {
 		return uint8(in)
 	}
@@ -362,40 +375,57 @@ func resizeGray16(in *image.Gray16, out *image.Gray16, _ float64, coeffs []int32
 	}
 }
 
-func resizeYCbCr(in *ycc, out *ycc, _ float64, coeffs []int16, offset []int, filterLength int) {
+func resizeYCbCr(in *ycc, out *ycc, coeffs []int16, offset []int, filterLength int) {
 	newBounds := out.Bounds()
 	maxX := in.Bounds().Dx() - 1
 
+	ptrCoeffs := unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(&coeffs)).Data)
+	ptrOffset := unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(&offset)).Data)
+	ptrOut := unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(&out.Pix)).Data)
+	ptrIn := unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(&in.Pix)).Data)
+
 	for x := newBounds.Min.X; x < newBounds.Max.X; x++ {
-		row := in.Pix[x*in.Stride:]
+		row := unsafe.Add(ptrIn, x*in.Stride)
 		for y := newBounds.Min.Y; y < newBounds.Max.Y; y++ {
-			var p [3]int32
-			var sum int32
-			start := offset[y]
+			var (
+				sum, p0, p1, p2 int32
+			)
+			start := *(*int)(unsafe.Add(ptrOffset, uintptr(y)*unsafe.Sizeof(0)))
 			ci := y * filterLength
 			for i := 0; i < filterLength; i++ {
-				coeff := coeffs[ci+i]
-				if coeff != 0 {
-					xi := start + i
-					switch {
-					case uint(xi) < uint(maxX):
-						xi *= 3
-					case xi >= maxX:
-						xi = 3 * maxX
-					default:
-						xi = 0
-					}
-					p[0] += int32(coeff) * int32(row[xi+0])
-					p[1] += int32(coeff) * int32(row[xi+1])
-					p[2] += int32(coeff) * int32(row[xi+2])
-					sum += int32(coeff)
+				coeff := int32(*(*int16)(unsafe.Add(ptrCoeffs, uintptr(ci+i)*unsafe.Sizeof(int16(0)))))
+				if coeff == 0 {
+					continue
 				}
-			}
 
+				xi := start + i
+				//xi *= int(b2u(xi > 0))
+				//xi = maxX*int(b2u(xi >= maxX)) + xi*int(b2u(xi < maxX))
+				//xi &= -int(b2u(xi >= 0))
+				//xi = xi | ((maxX-xi)>>math.MaxInt - 1)
+				//xi *= 3
+				switch {
+				case uint(xi) < uint(maxX):
+					xi *= 3
+				case xi >= maxX:
+					xi = 3 * maxX
+				default:
+					xi = 0
+				}
+
+				p0 += coeff * int32(*(*uint8)(unsafe.Add(row, xi)))
+				p1 += coeff * int32(*(*uint8)(unsafe.Add(row, xi+1)))
+				p2 += coeff * int32(*(*uint8)(unsafe.Add(row, xi+2)))
+				sum += coeff
+			}
+			if sum == 0 {
+				continue
+			}
 			xo := (y-newBounds.Min.Y)*out.Stride + (x-newBounds.Min.X)*3
-			out.Pix[xo+0] = clampUint8(p[0] / sum)
-			out.Pix[xo+1] = clampUint8(p[1] / sum)
-			out.Pix[xo+2] = clampUint8(p[2] / sum)
+			*(*uint8)(unsafe.Add(ptrOut, xo)) = clampUint8(p0 / sum)
+			*(*uint8)(unsafe.Add(ptrOut, xo+1)) = clampUint8(p1 / sum)
+			*(*uint8)(unsafe.Add(ptrOut, xo+2)) = clampUint8(p2 / sum)
+
 		}
 	}
 }

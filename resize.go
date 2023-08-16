@@ -147,11 +147,11 @@ func Resize(width, height uint, img image.Image, interp InterpolationFunction) i
 		coeffs, offset, filterLength := createWeights8(temp.Bounds().Dy(), taps, blur, scaleX, kernel)
 		in := imageYCbCrToYCC(input)
 		slice := makeSlice(temp, 0, 1).(*ycc)
-		resizeYCbCr(in, slice, scaleX, coeffs, offset, filterLength)
+		resizeYCbCr(in, slice, coeffs, offset, filterLength)
 
 		coeffs, offset, filterLength = createWeights8(result.Bounds().Dy(), taps, blur, scaleY, kernel)
 		slice = makeSlice(result, 0, 1).(*ycc)
-		resizeYCbCr(temp, slice, scaleY, coeffs, offset, filterLength)
+		resizeYCbCr(temp, slice, coeffs, offset, filterLength)
 		return result.YCbCr()
 	case *image.RGBA64:
 		// 16-bit precision
