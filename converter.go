@@ -22,20 +22,11 @@ import (
 	"unsafe"
 )
 
-func b2u(b bool) uint8 {
-	if b {
-		return 1
-	}
-	return 0
-}
-
 // Keep value in [0,255] range.
 func clampUint8(in int32) uint8 {
 	// casting a negative int to an uint will result in an overflown
 	// large uint. this behavior will be exploited here and in other functions
 	// to achieve a higher performance.
-	//in &= -int32(b2u(in >= 0))
-	//return uint8(in | ((255 - in) >> 31))
 	if uint32(in) < 256 {
 		return uint8(in)
 	}
@@ -399,11 +390,6 @@ func resizeYCbCr(in *ycc, out *ycc, coeffs []int16, offset []int, filterLength i
 				}
 
 				xi := start + i
-				//xi *= int(b2u(xi > 0))
-				//xi = maxX*int(b2u(xi >= maxX)) + xi*int(b2u(xi < maxX))
-				//xi &= -int(b2u(xi >= 0))
-				//xi = xi | ((maxX-xi)>>math.MaxInt - 1)
-				//xi *= 3
 				switch {
 				case uint(xi) < uint(maxX):
 					xi *= 3
